@@ -103,7 +103,7 @@ func parseDatadogMetadata(config *ScalerConfig, logger logr.Logger) (*datadogMet
 		if err != nil {
 			return nil, fmt.Errorf("timeWindowOffset parsing error %s", err.Error())
 		}
-		if timeWindowOffset < 60 {
+		if timeWindowOffset < 0 {
 			return nil, fmt.Errorf("timeWindowOffset should not be smaller than 0 seconds")
 		}
 		meta.timeWindowOffset = timeWindowOffset
@@ -342,15 +342,17 @@ func (s *datadogScaler) getQueryResult(ctx context.Context) (float64, error) {
 		points := series[i].GetPointlist()
 		index := len(points) - 1
 		// Find out the last point != nil
-		for j := len(points) - 1; j >= 0; j-- {
-			if len(points[index]) >= 2 && points[j][1] != nil {
+		for j := index; j >= 0; j-- {
+			if len(points[j]) >= 2 && points[j][1] != nil {
 				index = j
 				break
 			}
 		}
-		if index >= s.metadata.lastAvailablePointOffset {
-			index = index - s.metadata.lastAvailablePointOffset
+		if index < s.metadata.lastAvailablePointOffset {
+			return 0, fmt.Errorf("The index is smaller than the lastAvailablePointOffset")
 		}
+		index = index - s.metadata.lastAvailablePointOffset
+
 		if len(points) == 0 || len(points[index]) < 2 || points[index][1] == nil {
 			if !s.metadata.useFiller {
 				return 0, fmt.Errorf("no Datadog metrics returned for the given time window")
